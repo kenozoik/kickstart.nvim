@@ -90,6 +90,26 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- For fzf to be shown at the bottom of the screen
+vim.cmd [[
+let g:fzf_layout = { 'down': '~40%' }
+]]
+
+-- Setup clipboard in WSL
+local in_wsl = os.getenv 'WSL_DISTRO_NAME' ~= nil
+
+if in_wsl then
+  vim.g.clipboard = {
+    name = 'wsl clipboard',
+    copy = { ['+'] = { 'clip.exe' }, ['*'] = { 'clip.exe' } },
+    paste = { ['+'] = { 'nvim_paste' }, ['*'] = { 'nvim_paste' } },
+    cache_enabled = true,
+  }
+end
+
+-- Equivalent to :set nowrap, I think
+vim.wo.wrap = false
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
@@ -185,10 +205,34 @@ vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' }
 --  Use CTRL+<hjkl> to switch between windows
 --
 --  See `:help wincmd` for a list of all window commands
-vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
-vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
-vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+--vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
+--vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
+--vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
+--vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+
+-- Jump by a word when moving horizontally
+vim.keymap.set('n', '<C-h>', 'B', { desc = 'Jump left to the next word when moving horizontally' })
+vim.keymap.set('n', '<C-l>', 'E', { desc = 'Jump right to the next word when moving horizontally' })
+vim.keymap.set('v', '<C-h>', 'B', { desc = 'Jump left to the next word when moving horizontally' })
+vim.keymap.set('v', '<C-l>', 'E', { desc = 'Jump right to the next word when moving horizontally' })
+
+-- Jump to next empty line when moving vertically
+vim.keymap.set('n', '<C-j>', '}', { desc = 'Jump to the next empty line when moving down vertically' })
+vim.keymap.set('n', '<C-k>', '{', { desc = 'Jump to the next empty line when moving up vertically' })
+vim.keymap.set('v', '<C-j>', '}', { desc = 'Jump to the next empty line when moving down vertically' })
+vim.keymap.set('v', '<C-k>', '{', { desc = 'Jump to the next empty line when moving up vertically' })
+
+-- Vertical splits/windows manipulations
+vim.keymap.set('n', '\\=', '<C-W>=', { desc = 'Make all windows the same size' })
+vim.keymap.set('n', '\\a', '<C-W>h <C-W><bar>', { desc = 'Make the leftmost window take most of the screen space' })
+vim.keymap.set('n', '\\d', '<C-W>l <C-W><bar>', { desc = 'Make the rightmost window take most of the screen space' })
+
+-- Visual block around the last pasted text
+vim.keymap.set('n', '\\v', '`[v`]', { desc = 'Visual block around the last pasted text' })
+
+-- Switch between source and header files using a.vim plugin
+vim.keymap.set('n', '\\f', '<esc>:A<cr>', { desc = 'Switch to header/source' })
+vim.keymap.set('n', '\\F', '<esc>:only<cr>:AV<cr>', { desc = 'Vertical split and open header/source in the new pane' })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
@@ -230,7 +274,40 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
-
+  'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  'tpope/vim-fugitive', -- A git wrapper for VIM
+  'APZelos/blamer.nvim', -- A git lens-like plugin - shows inlined git blame info
+  'vim-scripts/a.vim', -- Switch between source and header files quickly
+  'skywind3000/asyncrun.vim', -- Run shell commands in the background
+  { 'junegunn/fzf.vim', dependencies = { 'junegunn/fzf' } }, -- fzf fuzzy finder - the original plugin
+  { 'akinsho/toggleterm.nvim', version = '*', config = true }, -- Simplifies handling of neovim's builtin terminal
+  -- NOTE(juraj): Copilot plugins - starting with the main plugin
+  {
+    'zbirenbaum/copilot.lua',
+    cmd = 'Copilot',
+    event = 'InsertEnter',
+    opts = {},
+  },
+  -- NOTE(juraj): Restrict Copilot to completion list only
+  {
+    'zbirenbaum/copilot-cmp',
+    config = function()
+      require('copilot_cmp').setup()
+    end,
+  },
+  -- NOTE(juraj): Copilot chat plugin to ask questions about stuff - code mainly
+  {
+    'CopilotC-Nvim/CopilotChat.nvim',
+    dependencies = {
+      { 'github/copilot.vim' }, -- or zbirenbaum/copilot.lua
+      { 'nvim-lua/plenary.nvim' }, -- for curl, log wrapper
+    },
+    build = 'make tiktoken', -- Only on MacOS or Linux
+    opts = {
+      -- See Configuration section for options
+    },
+    -- See Commands section for default commands if you want to lazy load on them
+  },
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
   -- keys can be used to configure plugin behavior/loading/etc.
@@ -615,10 +692,11 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {},
         -- gopls = {},
         -- pyright = {},
-        -- rust_analyzer = {},
+        rust_analyzer = {},
+        zls = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
@@ -826,6 +904,8 @@ require('lazy').setup({
             -- set group index to 0 to skip loading LuaLS completions as lazydev recommends it
             group_index = 0,
           },
+          -- NOTE(juraj): Copilot source
+          { name = 'copilot' },
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
           { name = 'path' },
@@ -845,7 +925,7 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'habamax'
 
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
